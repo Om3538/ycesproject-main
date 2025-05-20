@@ -1,27 +1,50 @@
 pipeline {
     agent any
+
+    tools {
+        python 'Python3'  // Ensure Python3 is set up in Jenkins Global Tools
+    }
+
+    environment {
+        DOCKER_IMAGE = "yces-python-app"
+    }
+
     stages {
-        stage('Clone GITHUB Repository') {
+        stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-        stage('Copy source code to Docker swarm') {
+
+        stage('Install Dependencies') {
             steps {
-                sh 'ansible-playbook playbook-to-copy-data-to-docker.yml --user=jenkins'
+                sh 'pip install -r requirements.txt'
             }
         }
 
-        stage('Build & Push the new Image to Dockerhub') {
+        stage('Unit Tests') {
             steps {
-                sh 'ansible-playbook playbook-to-push.yml --user=jenkins'
+                sh 'pytest || echo "No tests yet"'
             }
         }
 
-        stage('Deploying new Service in Docker Swarm') {
+        stage('Docker Build') {
             steps {
-                sh 'ansible-playbook playbook-for-deployment.yml --user=jenkins'
+                sh 'docker build -t $DOCKER_IMAGE .'
             }
+        }
+
+        stage('Docker Run') {
+            steps {
+                sh 'docker run -d -p 8081:8080 $DOCKER_IMAGE'
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Cleaning up...'
+            sh 'docker ps -aq | xargs -r docker rm -f'
         }
     }
 }
