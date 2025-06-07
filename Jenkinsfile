@@ -2,12 +2,6 @@ pipeline {
     agent any
 
     stages {
-        stage('Clone Repository') {
-            steps {
-                git 'https://github.com/Om3538/ycesproject-main.git'
-            }
-        }
-
         stage('Install Dependencies') {
             steps {
                 dir('source-code') {
@@ -23,16 +17,14 @@ pipeline {
 
         stage('Unit Tests') {
             steps {
-                echo 'Skipping tests (add here if needed)'
+                echo 'No unit tests configured yet.'
             }
         }
 
         stage('Docker Build') {
             steps {
                 dir('source-code') {
-                    sh '''
-                        docker build -t ycesproject .
-                    '''
+                    sh 'docker build -t ycesproject .'
                 }
             }
         }
@@ -50,7 +42,7 @@ pipeline {
 
     post {
         always {
-            echo 'Cleaning up...'
+            echo 'Cleaning up containers if any...'
             sh 'docker ps -aq | xargs -r docker rm -f || true'
         }
     }
