@@ -2,7 +2,7 @@ pipeline {
     agent {
         docker {
             image 'python:3.10'
-            args '-u root' // run as root to install packages
+            args '-u root'
         }
     }
 
@@ -13,6 +13,9 @@ pipeline {
     stages {
         stage('Install Dependencies') {
             steps {
+                // Ensure requirements.txt is present by doing checkout here
+                checkout scm 
+                sh 'ls -la'  // Debug: see if requirements.txt exists
                 sh 'pip install -r requirements.txt'
             }
         }
