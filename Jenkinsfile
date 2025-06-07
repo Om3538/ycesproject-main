@@ -1,17 +1,16 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'python:3.10'
+            args '-u root' // run as root to install packages
+        }
+    }
 
     environment {
         DOCKER_IMAGE = "yces-python-app"
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                echo 'Repository checked out automatically by Jenkins.'
-            }
-        }
-
         stage('Install Dependencies') {
             steps {
                 sh 'pip install -r requirements.txt'
@@ -40,9 +39,7 @@ pipeline {
     post {
         always {
             echo 'Cleaning up...'
-            sh '''
-                docker ps -aq | xargs -r docker rm -f || true
-            '''
+            sh 'docker ps -aq | xargs -r docker rm -f || true'
         }
     }
 }
