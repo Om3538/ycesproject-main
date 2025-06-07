@@ -8,7 +8,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                sh 'git clone https://github.com/Om3538/ycesproject-main.git .'
+                echo 'Repository checked out automatically by Jenkins.'
             }
         }
 
