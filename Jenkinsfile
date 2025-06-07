@@ -1,47 +1,39 @@
 pipeline {
-    agent {
-        docker {
-            image 'python:3.10'
-        }
-    }
-
-    environment {
-        VENV_DIR = 'venv'
-    }
+    agent any
 
     stages {
-        stage('Checkout') {
+        stage('Clone Repository') {
             steps {
-                checkout scm
+                git 'https://github.com/Om3538/ycesproject-main.git'
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                sh '''
-                    python3 -m venv ${VENV_DIR}
-                    . ${VENV_DIR}/bin/activate
-                    pip install --upgrade pip
-                    pip install -r source-code/requirements.txt
-                '''
+                dir('source-code') {
+                    sh '''
+                        python3 -m venv venv
+                        . venv/bin/activate
+                        pip install --upgrade pip
+                        pip install -r requirements.txt
+                    '''
+                }
             }
         }
 
         stage('Unit Tests') {
             steps {
-                sh '''
-                    . ${VENV_DIR}/bin/activate
-                    # run your tests here (update command if needed)
-                    echo "No unit tests defined."
-                '''
+                echo 'Skipping tests (add here if needed)'
             }
         }
 
         stage('Docker Build') {
             steps {
-                sh '''
-                    docker build -t ycesproject:latest .
-                '''
+                dir('source-code') {
+                    sh '''
+                        docker build -t ycesproject .
+                    '''
+                }
             }
         }
 
@@ -50,7 +42,7 @@ pipeline {
                 sh '''
                     docker stop ycesproject || true
                     docker rm ycesproject || true
-                    docker run -d --name ycesproject -p 8083:80 ycesproject:latest
+                    docker run -d -p 8083:80 --name ycesproject ycesproject
                 '''
             }
         }
