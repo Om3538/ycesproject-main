@@ -1,11 +1,6 @@
 pipeline {
     agent any
 
-    tools {
-        // Remove or comment out if not configured in Jenkins Global Tools
-        // python 'Python3'
-    }
-
     environment {
         DOCKER_IMAGE = "yces-python-app"
     }
