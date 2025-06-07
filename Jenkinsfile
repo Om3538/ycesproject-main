@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     tools {
-        python 'Python3'  // Ensure Python3 is set up in Jenkins Global Tools
+        // Remove or comment out if not configured in Jenkins Global Tools
+        // python 'Python3'
     }
 
     environment {
@@ -12,7 +13,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                sh 'git clone https://github.com/Om3538/ycesproject-main.git .'
             }
         }
 
@@ -44,7 +45,9 @@ pipeline {
     post {
         always {
             echo 'Cleaning up...'
-            sh 'docker ps -aq | xargs -r docker rm -f'
+            sh '''
+                docker ps -aq | xargs -r docker rm -f || true
+            '''
         }
     }
 }
