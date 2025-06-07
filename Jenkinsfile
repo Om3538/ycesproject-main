@@ -2,39 +2,56 @@ pipeline {
     agent {
         docker {
             image 'python:3.10'
-            args '-u root'
         }
     }
 
     environment {
-        DOCKER_IMAGE = "yces-python-app"
+        VENV_DIR = 'venv'
     }
 
     stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Install Dependencies') {
             steps {
-                // Ensure requirements.txt is present by doing checkout here
-                checkout scm 
-                sh 'ls -la'  // Debug: see if requirements.txt exists
-                sh 'pip install -r requirements.txt'
+                sh '''
+                    python3 -m venv ${VENV_DIR}
+                    . ${VENV_DIR}/bin/activate
+                    pip install --upgrade pip
+                    pip install -r source-code/requirements.txt
+                '''
             }
         }
 
         stage('Unit Tests') {
             steps {
-                sh 'pytest || echo "No tests yet"'
+                sh '''
+                    . ${VENV_DIR}/bin/activate
+                    # run your tests here (update command if needed)
+                    echo "No unit tests defined."
+                '''
             }
         }
 
         stage('Docker Build') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
+                sh '''
+                    docker build -t ycesproject:latest .
+                '''
             }
         }
 
         stage('Docker Run') {
             steps {
-                sh 'docker run -d -p 8081:8080 $DOCKER_IMAGE'
+                sh '''
+                    docker stop ycesproject || true
+                    docker rm ycesproject || true
+                    docker run -d --name ycesproject -p 8083:80 ycesproject:latest
+                '''
             }
         }
     }
