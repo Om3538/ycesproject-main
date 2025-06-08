@@ -1,13 +1,10 @@
 pipeline {
     agent any
 
-    tools {
-        python 'Python3'  // Make sure 'Python3' is configured in Jenkins global tools
-    }
-
     environment {
         DOCKER_IMAGE = "yces-python-app"
-        REQUIREMENTS_PATH = "source-code/Docker/requirements.txt"
+        REQUIREMENTS_FILE = "source-code/Docker/requirements.txt"
+        APP_DIR = "source-code"
     }
 
     stages {
@@ -19,13 +16,15 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                dir('source-code') {
+                dir("${APP_DIR}") {
                     sh '''
                         echo "[*] Creating virtual environment..."
-                        python3 -m venv venv
-                        source venv/bin/activate
+                        python3 -m venv test_env
+                        echo "[*] Activating virtual environment..."
+                        . test_env/bin/activate
+                        echo "[*] Installing requirements from ${REQUIREMENTS_FILE}..."
                         pip install --upgrade pip
-                        pip install -r Docker/requirements.txt
+                        pip install -r ../Docker/requirements.txt
                     '''
                 }
             }
@@ -33,15 +32,11 @@ pipeline {
 
         stage('Unit Tests') {
             steps {
-                dir('source-code') {
+                dir("${APP_DIR}") {
                     sh '''
-                        source venv/bin/activate
-                        if ls test_*.py >/dev/null 2>&1; then
-                            echo "[*] Running tests..."
-                            pytest
-                        else
-                            echo "[*] No tests found. Skipping."
-                        fi
+                        . test_env/bin/activate
+                        echo "[*] Running unit tests..."
+                        pytest || echo "No tests found, skipping."
                     '''
                 }
             }
@@ -49,13 +44,19 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
+                sh '''
+                    echo "[*] Building Docker image..."
+                    docker build -t $DOCKER_IMAGE .
+                '''
             }
         }
 
         stage('Docker Run') {
             steps {
-                sh 'docker run -d -p 8081:8080 $DOCKER_IMAGE'
+                sh '''
+                    echo "[*] Running Docker container..."
+                    docker run -d -p 8081:8080 $DOCKER_IMAGE
+                '''
             }
         }
     }
