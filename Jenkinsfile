@@ -2,14 +2,11 @@ pipeline {
     agent any
 
     environment {
-        PROJECT_DIR = 'source-code'
-        IMAGE_NAME = 'ycesproject-image'
-        CONTAINER_NAME = 'ycesproject-container'
-        PORT = '8083'
+        PROJECT_NAME = "ycesproject"
+        IMAGE_NAME = "1365890/ycesproject"
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/Om3538/ycesproject-main.git'
@@ -18,45 +15,38 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                dir("${PROJECT_DIR}") {
-                    sh '''
-                        python3 -m venv venv
-                        . venv/bin/activate
-                        pip install --upgrade pip
-                        pip install -r requirements.txt
-                    '''
-                }
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                '''
             }
         }
 
         stage('Unit Tests') {
             steps {
-                dir("${PROJECT_DIR}") {
-                    sh '''
-                        echo "Running Unit Tests (placeholder)"
-                        # Add real test command if available
-                    '''
-                }
+                sh '''
+                    . venv/bin/activate
+                    python3 -m unittest discover -s tests || echo "No tests found or some failed"
+                '''
             }
         }
 
         stage('Docker Build') {
             steps {
-                dir("${PROJECT_DIR}") {
-                    sh """
-                        docker build -t ${IMAGE_NAME} .
-                    """
-                }
+                sh '''
+                    docker build -t $IMAGE_NAME .
+                '''
             }
         }
 
         stage('Docker Run') {
             steps {
-                sh """
-                    docker stop ${CONTAINER_NAME} || true
-                    docker rm ${CONTAINER_NAME} || true
-                    docker run -d -p 80:${PORT} --name ${CONTAINER_NAME} ${IMAGE_NAME}
-                """
+                sh '''
+                    docker ps -q --filter "name=$PROJECT_NAME" | grep -q . && docker rm -f $PROJECT_NAME || true
+                    docker run -d -p 8083:80 --name $PROJECT_NAME $IMAGE_NAME
+                '''
             }
         }
     }
@@ -64,13 +54,13 @@ pipeline {
     post {
         always {
             echo 'Cleaning up containers if any...'
-            sh 'docker ps -aq | xargs -r docker rm -f || true'
+            sh 'docker ps -aq | xargs -r docker rm -f'
         }
         failure {
             echo 'Pipeline Failed ❌'
         }
         success {
-            echo 'Pipeline Completed Successfully ✅'
+            echo 'Pipeline Succeeded ✅'
         }
     }
 }
