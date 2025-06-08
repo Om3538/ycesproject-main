@@ -2,7 +2,10 @@ pipeline {
     agent any
 
     environment {
-        VENV = "test_env"
+        VENV      = "test_env"
+        IMAGE     = "yces-python-app"
+        APP_PORT  = "8083"     // internal container port based on your Dockerfile
+        HOST_PORT = "8080"     // host port to bind Jenkins uses
     }
 
     stages {
@@ -16,11 +19,11 @@ pipeline {
             steps {
                 dir('source-code') {
                     sh '''
-                        echo [*] Creating virtual environment...
+                        echo "[*] Create & activate virtualenv..."
                         python3 -m venv $VENV
-                        echo [*] Activating virtual environment...
                         . $VENV/bin/activate
-                        echo [*] Installing requirements from Docker/requirements.txt...
+
+                        echo "[*] Install dependencies..."
                         pip install --upgrade pip
                         pip install -r Docker/requirements.txt
                         pip install pytest
@@ -34,8 +37,8 @@ pipeline {
                 dir('source-code') {
                     sh '''
                         . $VENV/bin/activate
-                        echo [*] Running unit tests...
-                        pytest || echo "⚠️ No tests found or tests failed, continuing anyway."
+                        echo "[*] 🧪 Running tests..."
+                        pytest || echo "⚠️ No tests or failures – continuing."
                     '''
                 }
             }
@@ -45,8 +48,11 @@ pipeline {
             steps {
                 dir('source-code') {
                     sh '''
-                        echo [*] Building Docker image...
-                        docker build -t yces-python-app Docker/
+                        echo "[*] 🛠️ Building Docker image..."
+                        docker build \
+                            --tag $IMAGE \
+                            --file Dockerfile \
+                            .
                     '''
                 }
             }
@@ -55,8 +61,12 @@ pipeline {
         stage('Docker Run') {
             steps {
                 sh '''
-                    echo [*] Running Docker container...
-                    docker run -d -p 8080:8080 --name yces-python-app yces-python-app
+                    echo "[*] 🚀 Running Docker container..."
+                    docker ps -aq --filter "name=$IMAGE" | xargs -r docker rm -f
+                    docker run -d \
+                        --name $IMAGE \
+                        -p $HOST_PORT:$APP_PORT \
+                        $IMAGE || echo "⚠️ Port $HOST_PORT in use; container run failed."
                 '''
             }
         }
@@ -64,8 +74,8 @@ pipeline {
 
     post {
         always {
-            echo 'Cleaning up containers if any...'
-            sh 'docker ps -aq | xargs -r docker rm -f || true'
+            echo "[*] 🧹 Cleanup: removing containers..."
+            sh 'docker ps -aq --filter "name=$IMAGE" | xargs -r docker rm -f'
         }
     }
 }
