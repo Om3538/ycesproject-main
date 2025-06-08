@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "yces-python-app"
-        REQUIREMENTS_FILE = "source-code/Docker/requirements.txt"
+        REQUIREMENTS_FILE = "Docker/requirements.txt"
         APP_DIR = "source-code"
     }
 
@@ -24,7 +24,7 @@ pipeline {
                         . test_env/bin/activate
                         echo "[*] Installing requirements from ${REQUIREMENTS_FILE}..."
                         pip install --upgrade pip
-                        pip install -r ../Docker/requirements.txt
+                        pip install -r ${REQUIREMENTS_FILE}
                     '''
                 }
             }
