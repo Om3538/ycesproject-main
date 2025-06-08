@@ -3,7 +3,8 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "yces-python-app"
-        PROJECT_DIR = "source-code"  // Assuming all your source files are inside this folder
+        VENV_PATH = "venv"
+        REQUIREMENTS_PATH = "source-code/Docker/requirements.txt"
     }
 
     stages {
@@ -15,33 +16,41 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                dir("${PROJECT_DIR}") {
-                    sh '''
-                        python3 -m venv venv
-                        . venv/bin/activate
-                        pip install --upgrade pip
-                        pip install -r requirements.txt
-                    '''
-                }
+                sh '''
+                    echo "[*] Creating virtual environment..."
+                    python3 -m venv ${VENV_PATH}
+                    . ${VENV_PATH}/bin/activate
+                    echo "[*] Upgrading pip..."
+                    pip install --upgrade pip
+                    
+                    if [ -f ${REQUIREMENTS_PATH} ]; then
+                        echo "[*] Installing dependencies from ${REQUIREMENTS_PATH}..."
+                        pip install -r ${REQUIREMENTS_PATH}
+                    else
+                        echo "[!] requirements.txt not found at ${REQUIREMENTS_PATH}"
+                        exit 1
+                    fi
+                '''
             }
         }
 
         stage('Unit Tests') {
             steps {
-                dir("${PROJECT_DIR}") {
-                    sh '''
-                        . venv/bin/activate
-                        pytest || echo "No tests found"
-                    '''
-                }
+                sh '''
+                    . ${VENV_PATH}/bin/activate
+                    if ls test_*.py >/dev/null 2>&1; then
+                        echo "[*] Running tests..."
+                        pytest
+                    else
+                        echo "[*] No tests found. Skipping."
+                    fi
+                '''
             }
         }
 
         stage('Docker Build') {
             steps {
-                dir("${PROJECT_DIR}") {
-                    sh 'docker build -t $DOCKER_IMAGE .'
-                }
+                sh 'docker build -t $DOCKER_IMAGE .'
             }
         }
 
