@@ -1,9 +1,12 @@
 pipeline {
     agent any
 
+    tools {
+        python 'Python3'  // Make sure 'Python3' is configured in Jenkins global tools
+    }
+
     environment {
         DOCKER_IMAGE = "yces-python-app"
-        VENV_PATH = "venv"
         REQUIREMENTS_PATH = "source-code/Docker/requirements.txt"
     }
 
@@ -16,35 +19,31 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh '''
-                    echo "[*] Creating virtual environment..."
-                    python3 -m venv ${VENV_PATH}
-                    . ${VENV_PATH}/bin/activate
-                    echo "[*] Upgrading pip..."
-                    pip install --upgrade pip
-                    
-                    if [ -f ${REQUIREMENTS_PATH} ]; then
-                        echo "[*] Installing dependencies from ${REQUIREMENTS_PATH}..."
-                        pip install -r ${REQUIREMENTS_PATH}
-                    else
-                        echo "[!] requirements.txt not found at ${REQUIREMENTS_PATH}"
-                        exit 1
-                    fi
-                '''
+                dir('source-code') {
+                    sh '''
+                        echo "[*] Creating virtual environment..."
+                        python3 -m venv venv
+                        source venv/bin/activate
+                        pip install --upgrade pip
+                        pip install -r Docker/requirements.txt
+                    '''
+                }
             }
         }
 
         stage('Unit Tests') {
             steps {
-                sh '''
-                    . ${VENV_PATH}/bin/activate
-                    if ls test_*.py >/dev/null 2>&1; then
-                        echo "[*] Running tests..."
-                        pytest
-                    else
-                        echo "[*] No tests found. Skipping."
-                    fi
-                '''
+                dir('source-code') {
+                    sh '''
+                        source venv/bin/activate
+                        if ls test_*.py >/dev/null 2>&1; then
+                            echo "[*] Running tests..."
+                            pytest
+                        else
+                            echo "[*] No tests found. Skipping."
+                        fi
+                    '''
+                }
             }
         }
 
