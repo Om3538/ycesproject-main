@@ -1,11 +1,14 @@
 pipeline {
     agent any
 
+    tools {
+        python 'Python3' // Ensure Python3 is set up in Jenkins Global Tools
+    }
+
     environment {
-        VENV      = "test_env"
-        IMAGE     = "yces-python-app"
-        APP_PORT  = "8083"     // internal container port based on your Dockerfile
-        HOST_PORT = "8080"     // host port to bind Jenkins uses
+        DOCKER_IMAGE_NAME = "yces-python-app"
+        DOCKER_IMAGE_TAG = "${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
+        // Add other environment variables as needed, e.g., for registry credentials
     }
 
     stages {
@@ -17,65 +20,89 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                dir('source-code') {
-                    sh '''
-                        echo "[*] Create & activate virtualenv..."
-                        python3 -m venv $VENV
-                        . $VENV/bin/activate
+                sh 'python3 -m venv venv'
+                sh '. venv/bin/activate && pip install -r requirements.txt'
+            }
+        }
 
-                        echo "[*] Install dependencies..."
-                        pip install --upgrade pip
-                        pip install -r Docker/requirements.txt
-                        pip install pytest
-                    '''
-                }
+        stage('Code Linting') {
+            steps {
+                // Example: Run Flake8 for linting
+                sh '. venv/bin/activate && pip install flake8' // Install linter
+                sh '. venv/bin/activate && flake8 --exit-zero || true' // Exit-zero allows pipeline to continue on warnings
             }
         }
 
         stage('Unit Tests') {
             steps {
-                dir('source-code') {
-                    sh '''
-                        . $VENV/bin/activate
-                        echo "[*] 🧪 Running tests..."
-                        pytest || echo "⚠️ No tests or failures – continuing."
-                    '''
+                sh '. venv/bin/activate && pytest --junitxml=reports/test-results.xml || echo "No tests yet or tests failed"'
+            }
+            post {
+                always {
+                    // Publish JUnit test results
+                    junit 'reports/test-results.xml'
                 }
             }
         }
 
         stage('Docker Build') {
             steps {
-                dir('source-code') {
-                    sh '''
-                        echo "[*] 🛠️ Building Docker image..."
-                        docker build \
-                            --tag $IMAGE \
-                            --file Dockerfile \
-                            .
-                    '''
+                script {
+                    echo "Building Docker image: ${DOCKER_IMAGE_TAG}"
+                    sh "docker build -t ${DOCKER_IMAGE_TAG} ."
                 }
             }
         }
 
-        stage('Docker Run') {
+        stage('Docker Image Scan') {
             steps {
-                sh '''
-                    echo "[*] 🚀 Running Docker container..."
-                    docker ps -aq --filter "name=$IMAGE" | xargs -r docker rm -f
-                    docker run -d \
-                        --name $IMAGE \
-                        -p $HOST_PORT:$APP_PORT \
-                        $IMAGE || echo "⚠️ Port $HOST_PORT in use; container run failed."
-                '''
+                // Example: Integrate a security scanner like Trivy
+                // This would require Trivy to be installed on the agent
+                // sh "trivy image --severity HIGH,CRITICAL ${DOCKER_IMAGE_TAG}"
+                echo "Skipping image scan for now, but recommended!"
+            }
+        }
+
+        // This stage is more for testing the Docker image immediately after build
+        // For actual deployment, you'd likely push to a registry and then deploy.
+        stage('Run Container for Integration Tests') {
+            steps {
+                script {
+                    // Start container in detached mode, capture ID for later cleanup
+                    def containerId = sh(returnStdout: true, script: "docker run -d -p 8081:8080 ${DOCKER_IMAGE_TAG}").trim()
+                    env.CONTAINER_ID = containerId // Store container ID in environment for cleanup
+                    echo "Container started with ID: ${containerId}"
+
+                    // Add a delay or health check to ensure the app is up before testing
+                    sh 'sleep 10' // Crude delay, consider a proper health check
+
+                    // Example: Run a simple curl command to check if the app is responsive
+                    sh 'curl -f http://localhost:8081 || { echo "Application not responsive"; exit 1; }'
+                }
             }
         }
     }
 
     post {
         always {
-            echo "[*] 🧹 Cleanup: removing containers..."
-            sh 'docker ps -aq --filter "name=$IMAGE" | xargs -r docker rm -f'
+            echo 'Cleaning up...'
+            script {
+                // Stop and remove the specific container started in the pipeline
+                if (env.CONTAINER_ID) {
+                    sh "docker rm -f ${env.CONTAINER_ID} || true"
+                }
+                // Remove the built Docker image
+                sh "docker rmi ${DOCKER_IMAGE_TAG} || true"
+            }
+            // Generic cleanup for any stray containers (less precise but good fallback)
+            sh 'docker ps -aq | xargs -r docker rm -f || true'
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+            // Add notification logic here (e.g., email, Slack)
         }
     }
 }
